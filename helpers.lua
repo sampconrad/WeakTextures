@@ -461,6 +461,51 @@ function wt:PresetMatchesConditions(presetName)
     return true
 end
 
+---Apply a file path / LSM texture or a Blizzard atlas to a texture region.
+---@param texture Texture
+---@param pathOrAtlas string
+---@param useAtlas boolean|nil
+---@param width number|nil  -- negative width flips horizontally
+---@param height number|nil -- negative height flips vertically
+function wt:ApplyTextureSource(texture, pathOrAtlas, useAtlas, width, height)
+	if not texture or not pathOrAtlas or pathOrAtlas == "" then
+		return
+	end
+
+	if useAtlas then
+		texture:SetAtlas(pathOrAtlas, false)
+		local ulx, uly, llx, lly, urx = texture:GetTexCoord()
+		local left, right, top, bottom = ulx, urx, uly, lly
+		if width and width < 0 then
+			left, right = right, left
+		end
+		if height and height < 0 then
+			top, bottom = bottom, top
+		end
+		texture:SetTexCoord(left, right, top, bottom)
+		return
+	end
+
+	local texturePath = pathOrAtlas
+	if not texturePath:find("[/\\]") then
+		local lsmTexture = self.LSM:Fetch("background", texturePath)
+		if lsmTexture then
+			texturePath = lsmTexture
+		end
+	end
+	texture:SetTexture(texturePath)
+
+	local left, right = 0, 1
+	local top, bottom = 0, 1
+	if width and width < 0 then
+		left, right = 1, 0
+	end
+	if height and height < 0 then
+		top, bottom = 1, 0
+	end
+	texture:SetTexCoord(left, right, top, bottom)
+end
+
 ---Create an anchored texture frame for a preset
 ---@param presetName string
 ---@param anchorName string
@@ -587,16 +632,13 @@ function wt:CreateAnchoredTexture(presetName, anchorName, texturePath, width, he
     if preset and preset.tempOverrides and preset.tempOverrides.texture then
         texturePath = preset.tempOverrides.texture
     end
-    
-    -- If texture name has no slashes, try LSM lookup
-    if not texturePath:find("[/\\]") then
-        local lsmTexture = self.LSM:Fetch("background", texturePath)
-        if lsmTexture then
-            texturePath = lsmTexture
-        end
+
+    local useAtlas = data and data.useAtlas
+    if preset and preset.tempOverrides and preset.tempOverrides.useAtlas ~= nil then
+        useAtlas = preset.tempOverrides.useAtlas
     end
-    
-    f.texture:SetTexture(texturePath)
+
+    self:ApplyTextureSource(f.texture, texturePath, useAtlas, width, height)
     
     -- Set color
     local r, g, b, a = 1, 1, 1, 1
@@ -607,20 +649,6 @@ function wt:CreateAnchoredTexture(presetName, anchorName, texturePath, width, he
         a = preset.color.a or 1
     end
     f.texture:SetVertexColor(r, g, b, a)
-    
-    -- Apply texture mirroring based on sign of width/height
-    local left, right = 0, 1
-    local top, bottom = 0, 1
-    
-    if width < 0 then
-        left, right = 1, 0
-    end
-    
-    if height < 0 then
-        top, bottom = 1, 0
-    end
-    
-    f.texture:SetTexCoord(left, right, top, bottom)
     
     -- Apply rotation
     local angle = (preset and preset.angle) or 0
@@ -964,15 +992,8 @@ function wt:PlayStopMotion(presetName, anchorName, texturePath, width, height, x
     f:SetFrameStrata(strata)
     f:SetFrameLevel(frameLevel)
     
-    -- If texture name has no slashes, try LSM lookup
-    if not texturePath:find("[/\\]") then
-        local lsmTexture = self.LSM:Fetch("background", texturePath)
-        if lsmTexture then
-            texturePath = lsmTexture
-        end
-    end
-    
-    f.texture:SetTexture(texturePath)
+    local useAtlas = data and data.useAtlas
+    self:ApplyTextureSource(f.texture, texturePath, useAtlas, width, height)
     
     -- Set vertex color (applies to entire texture, not per-frame)
     local r, g, b, a = 1, 1, 1, 1
@@ -1226,22 +1247,19 @@ function wt:UpdateExistingFrame(presetName, container, overrides)
     -- Update texture (only if explicitly provided in override)
     if overrides.texture then
         local texturePath = overrides.texture
-        
-        -- If texture name has no slashes, try LSM lookup
-        if not texturePath:find("[/\\]") then
-            local lsmTexture = self.LSM:Fetch("background", texturePath)
-            if lsmTexture then
-                texturePath = lsmTexture
-            end
+        local useAtlas = overrides.useAtlas
+        if useAtlas == nil and preset.textures and preset.textures[1] then
+            useAtlas = preset.textures[1].useAtlas
         end
-        
+
         if frame.texture then
-            frame.texture:SetTexture(texturePath)
-            
-            -- For static textures, reset tex coords
-            if preset.type ~= "motion" then
-                frame.texture:SetTexCoord(0, 1, 0, 1)
+            local width = overrides.width
+            local height = overrides.height
+            if (width == nil or height == nil) and preset.textures and preset.textures[1] then
+                width = width or preset.textures[1].width
+                height = height or preset.textures[1].height
             end
+            self:ApplyTextureSource(frame.texture, texturePath, useAtlas, width, height)
         end
     end
     
@@ -2082,14 +2100,19 @@ function wt:OnAddTextureClick()
     local newPresetName = strtrim(wt.frame.right.configPanelContent.presetNameEdit:GetText())
     local anchorName = wt.frame.right.configPanelContent.anchorEdit:GetText() or "UIParent"
     
-    -- Get texture path from dropdown or custom edit
+    -- Get texture path from dropdown or custom/atlas edit
     local texturePath = ""
-    if wt.frame.right.configPanelContent.textureDropDown.selectedValue == "Custom" then
+    local useAtlas = false
+    local selectedTexture = wt.frame.right.configPanelContent.textureDropDown.selectedValue
+    if selectedTexture == "Custom" then
         texturePath = wt.frame.right.configPanelContent.textureCustomEdit:GetText() or ""
         -- Auto-register custom texture if enabled
         if WeakTexturesSettings.autoRegisterCustomTextures and texturePath ~= "" then
             wt:RegisterCustomTexture(texturePath)
         end
+    elseif selectedTexture == "Blizzard Atlas" then
+        texturePath = wt.frame.right.configPanelContent.textureCustomEdit:GetText() or ""
+        useAtlas = true
     else
         texturePath = wt.frame.right.configPanelContent.textureDropDown.selectedPath or ""
     end
@@ -2286,6 +2309,7 @@ function wt:OnAddTextureClick()
     preset.textures[1] = {
         anchor = anchorName,
         texture = texturePath,
+        useAtlas = useAtlas or nil,
         width = width,
         height = height,
         x = x,

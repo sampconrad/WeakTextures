@@ -515,23 +515,51 @@ function wt:CreateUI()
         rootDescription:SetScrollMode(450)  -- Enable scrolling with max height
         
         -- Custom option
-        rootDescription:CreateRadio("Custom", function() return dropdown.selectedValue == "Custom" end, function()
+        rootDescription:CreateRadio(L.TEXTURE_CUSTOM or "Custom", function() return dropdown.selectedValue == "Custom" end, function()
             dropdown.selectedValue = "Custom"
             dropdown.selectedPath = nil
             
             -- If editing existing preset, populate with current texture path
             if wt.selectedPreset then
                 local preset = WeakTexturesDB.presets[wt.selectedPreset]
-                if preset and preset.texture then
+                local textureData = preset and preset.textures and preset.textures[1]
+                if textureData and textureData.texture and not textureData.useAtlas then
+                    content.textureCustomEdit:SetText(textureData.texture)
+                elseif preset and preset.texture then
                     content.textureCustomEdit:SetText(preset.texture)
                 else
                     content.textureCustomEdit:SetText("")
                 end
             else
-                -- New preset - leave empty
                 content.textureCustomEdit:SetText("")
             end
-            
+
+            if content.textureCustomEdit.Instructions then
+                content.textureCustomEdit.Instructions:SetText((L.PLACEHOLDER_TEXTURE_PATH or "") .. "e.g. Interface\\AddOns\\MyAddon\\Textures\\MyTexture.tga")
+            end
+            content.textureCustomEdit:Show()
+        end)
+
+        -- Blizzard Atlas option
+        rootDescription:CreateRadio(L.TEXTURE_BLIZZARD_ATLAS or "Blizzard Atlas", function() return dropdown.selectedValue == "Blizzard Atlas" end, function()
+            dropdown.selectedValue = "Blizzard Atlas"
+            dropdown.selectedPath = nil
+
+            if wt.selectedPreset then
+                local preset = WeakTexturesDB.presets[wt.selectedPreset]
+                local textureData = preset and preset.textures and preset.textures[1]
+                if textureData and textureData.useAtlas and textureData.texture then
+                    content.textureCustomEdit:SetText(textureData.texture)
+                else
+                    content.textureCustomEdit:SetText("")
+                end
+            else
+                content.textureCustomEdit:SetText("")
+            end
+
+            if content.textureCustomEdit.Instructions then
+                content.textureCustomEdit.Instructions:SetText(L.PLACEHOLDER_ATLAS_NAME or "Enter atlas name")
+            end
             content.textureCustomEdit:Show()
         end)
         
@@ -755,7 +783,7 @@ function wt:CreateUI()
     content.textureLabel:SetPoint("BOTTOMLEFT", content.textureDropDown, "TOPLEFT", 0, 3)
     content.textureLabel:SetText(L.LABEL_TEXTURE_PATH)
 
-    -- Custom texture path EditBox (shown when "Custom" is selected)
+    -- Custom texture path / atlas name EditBox (shown for Custom or Blizzard Atlas)
     content.textureCustomEdit = wt:CreateEditBox(content, 390, nil, L.PLACEHOLDER_TEXTURE_PATH .. "e.g. Interface\\AddOns\\MyAddon\\Textures\\MyTexture.tga")
     content.textureCustomEdit:SetPoint("TOPLEFT", content.textureDropDown, "BOTTOMLEFT", 5, -5)
 

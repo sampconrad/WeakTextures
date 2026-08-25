@@ -34,12 +34,12 @@ function wt:ShowPresetTooltip(parent, presetName)
     local tooltip = wt.presetTooltip
     tooltip:SetSize(width + 12, height + 12)
     tooltip.texture:SetSize(width, height)
-    tooltip.texture:SetTexture(data.texture)
+    wt:ApplyTextureSource(tooltip.texture, data.texture, data.useAtlas, width, height)
 
     -- Position tooltip next to cursor
     tooltip:SetPoint("BOTTOMLEFT", parent, "TOPRIGHT", 40, 0)
 
-    if preset.type == "motion" then
+    if preset.type == "motion" and not data.useAtlas then
         local columns = preset.columns or 1
         local rows = preset.rows or 1
         local totalFrames = preset.totalFrames or 1

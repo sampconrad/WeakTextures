@@ -224,12 +224,23 @@ function wt:LoadPresetIntoFields(presetName)
             wt.frame.right.configPanelContent.hideWithParentCheck:SetChecked(data.hideWithParent ~= false)
         end
         
-        -- Check if texture is from LSM or WeakTexturesCustomTextures
+        -- Check if texture is from LSM, custom list, or Blizzard Atlas
         local texturePath = data.texture or ""
         local foundTexture = false
+
+        if data.useAtlas then
+            wt.frame.right.configPanelContent.textureDropDown.selectedValue = "Blizzard Atlas"
+            wt.frame.right.configPanelContent.textureDropDown.selectedPath = nil
+            wt.frame.right.configPanelContent.textureCustomEdit:SetText(texturePath)
+            if wt.frame.right.configPanelContent.textureCustomEdit.Instructions then
+                wt.frame.right.configPanelContent.textureCustomEdit.Instructions:SetText(L.PLACEHOLDER_ATLAS_NAME or "Enter atlas name")
+            end
+            wt.frame.right.configPanelContent.textureCustomEdit:Show()
+            foundTexture = true
+        end
         
         -- First check WeakTexturesCustomTextures
-        if WeakTexturesCustomTextures then
+        if not foundTexture and WeakTexturesCustomTextures then
             for textureName, customPath in pairs(WeakTexturesCustomTextures) do
                 if customPath == texturePath then
                     local displayName = textureName:gsub("^WT_", "")  -- Remove WT_ prefix for display
@@ -265,6 +276,9 @@ function wt:LoadPresetIntoFields(presetName)
             wt.frame.right.configPanelContent.textureDropDown.selectedValue = "Custom"
             wt.frame.right.configPanelContent.textureDropDown.selectedPath = nil
             wt.frame.right.configPanelContent.textureCustomEdit:SetText(texturePath)
+            if wt.frame.right.configPanelContent.textureCustomEdit.Instructions then
+                wt.frame.right.configPanelContent.textureCustomEdit.Instructions:SetText((L.PLACEHOLDER_TEXTURE_PATH or "") .. "e.g. Interface\\AddOns\\MyAddon\\Textures\\MyTexture.tga")
+            end
             wt.frame.right.configPanelContent.textureCustomEdit:Show()
         end
         

@@ -221,21 +221,17 @@ function wt:CreateInstance(presetName, data)
         self:ReleaseFrame(presetName, container)
         return
     end
-    
-    -- If texture name has no slashes, try LSM lookup
-    if not texturePath:find("[/\\]") then
-        local lsmTexture = wt.LSM:Fetch("background", texturePath)
-        if lsmTexture then
-            texturePath = lsmTexture
-        end
+
+    local useAtlas = data.useAtlas
+    if useAtlas == nil and preset.textures and preset.textures[1] then
+        useAtlas = preset.textures[1].useAtlas
     end
-    
-    container.texture:SetTexture(texturePath)
-    
-    -- Set frame size and position
     local width = textureData.width or 512
     local height = textureData.height or 512
-    container.frame:SetSize(width, height)
+    wt:ApplyTextureSource(container.texture, texturePath, useAtlas, width, height)
+    
+    -- Set frame size and position
+    container.frame:SetSize(math.abs(width), math.abs(height))
     
     -- Set anchor with per-instance offset override
     local anchor = textureData.anchor or "UIParent"
@@ -602,18 +598,15 @@ function wt:UpdateContainerParameters(presetName, container, updates, preset)
     -- Update texture
     if updates.texture then
         local texturePath = updates.texture
-        if not texturePath:find("[/\\]") then
-            local lsmTexture = self.LSM:Fetch("background", texturePath)
-            if lsmTexture then
-                texturePath = lsmTexture
-            end
+        local useAtlas = updates.useAtlas
+        if useAtlas == nil and preset.textures and preset.textures[1] then
+            useAtlas = preset.textures[1].useAtlas
         end
-        
+        local textureData = preset.textures and preset.textures[1]
+        local width = updates.width or (textureData and textureData.width) or 512
+        local height = updates.height or (textureData and textureData.height) or 512
         if container.texture then
-            container.texture:SetTexture(texturePath)
-            if preset.type ~= "motion" then
-                container.texture:SetTexCoord(0, 1, 0, 1)
-            end
+            wt:ApplyTextureSource(container.texture, texturePath, useAtlas, width, height)
         end
     end
     
