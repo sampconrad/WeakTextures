@@ -144,6 +144,23 @@ function wt:ImportFromString(str)
                         wt:PlayStopMotion(newName, preset.textures[1].anchor, preset.textures[1].texture, 
                             preset.textures[1].width, preset.textures[1].height, preset.textures[1].x, preset.textures[1].y, 
                             preset.columns or 1, preset.rows or 1, preset.totalFrames or 1, preset.fps or 30)
+                    elseif preset.type == "atlasFlipbook" then
+                        wt:PlayAtlasFlipbook(
+                            newName,
+                            preset.textures[1].anchor,
+                            preset.textures[1].texture,
+                            preset.textures[1].width,
+                            preset.textures[1].height,
+                            preset.textures[1].x,
+                            preset.textures[1].y,
+                            preset.columns or 1,
+                            preset.rows or 1,
+                            preset.totalFrames or 1,
+                            preset.animationSpeed or 15,
+                            preset.animationLoop ~= false,
+                            preset.animationReverse and true or false,
+                            (not (preset.animationLoop ~= false)) and (preset.animationHoldLast and true or false)
+                        )
                     else
                         -- Use V2 format (textures array) or V1 format (individual properties)
                         local anchor = preset.textures and preset.textures[1] and preset.textures[1].anchor or preset.anchorName

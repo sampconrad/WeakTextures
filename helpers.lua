@@ -857,6 +857,119 @@ function wt:CreateAnchoredTexture(presetName, anchorName, texturePath, width, he
     end
 end
 
+---Play an atlas flipbook animation (grid frames inside a Blizzard atlas region).
+---Uses the native FlipBook AnimationGroup so cells stay bound to the atlas.
+---@param presetName string
+---@param anchorName string
+---@param atlasName string
+---@param width number
+---@param height number
+---@param x number
+---@param y number
+---@param columns number
+---@param rows number
+---@param totalFrames number
+---@param speed number  -- frames per second
+---@param loop boolean
+---@param reverse boolean
+---Play an atlas flipbook animation (grid frames inside a Blizzard atlas region).
+---Uses the native FlipBook AnimationGroup so cells stay bound to the atlas.
+---@param presetName string
+---@param anchorName string
+---@param atlasName string
+---@param width number
+---@param height number
+---@param x number
+---@param y number
+---@param columns number
+---@param rows number
+---@param totalFrames number
+---@param speed number  -- frames per second
+---@param loop boolean
+---@param reverse boolean
+---@param holdLast boolean|nil  -- keep final frame visible when non-looping finishes
+function wt:PlayAtlasFlipbook(presetName, anchorName, atlasName, width, height, x, y, columns, rows, totalFrames, speed, loop, reverse, holdLast)
+	-- Ensure the preset texture entry is treated as an atlas for ApplyTextureSource
+	local preset = WeakTexturesDB.presets[presetName]
+	if preset and preset.textures and preset.textures[1] then
+		preset.textures[1].useAtlas = true
+	end
+
+	-- Stop any prior flipbook before CreateAnchoredTexture may reparent (FlipBook + SetParent can crash)
+	local existing = wt.activeFramesByPreset[presetName] and wt.activeFramesByPreset[presetName].frame
+	if existing then
+		existing:SetScript("OnUpdate", nil)
+		if existing.atlasFlipbookGroup then
+			existing.atlasFlipbookGroup:Stop()
+			existing.atlasFlipbookGroup:SetScript("OnFinished", nil)
+		end
+	end
+
+	self:CreateAnchoredTexture(presetName, anchorName, atlasName, width, height, x, y)
+
+	local container = wt.activeFramesByPreset[presetName]
+	local f = container and container.frame
+	if not f or not f.texture then
+		return
+	end
+
+	columns = math.max(1, tonumber(columns) or 1)
+	rows = math.max(1, tonumber(rows) or 1)
+	totalFrames = math.max(1, tonumber(totalFrames) or 1)
+	speed = math.max(0.1, tonumber(speed) or 15)
+	if loop == nil then loop = true end
+	if holdLast == nil then holdLast = false end
+	if loop then
+		holdLast = false
+	elseif holdLast then
+		loop = false
+	end
+
+	-- ApplyTextureSource may SetTexCoord after SetAtlas (for H/V flip), which demotes the
+	-- atlas binding. FlipBook needs a live atlas so it can subdivide that region into cells.
+	f.texture:SetAtlas(atlasName, false)
+	f:SetScript("OnUpdate", nil)
+
+	if not f.atlasFlipbookGroup then
+		f.atlasFlipbookGroup = f:CreateAnimationGroup()
+		f.atlasFlipbookAnim = f.atlasFlipbookGroup:CreateAnimation("FlipBook")
+		f.atlasFlipbookAnim:SetTarget(f.texture)
+	end
+
+	local group = f.atlasFlipbookGroup
+	local anim = f.atlasFlipbookAnim
+
+	anim:SetFlipBookColumns(columns)
+	anim:SetFlipBookRows(rows)
+	anim:SetFlipBookFrames(totalFrames)
+	-- 0 = derive cell size from columns/rows within the atlas
+	anim:SetFlipBookFrameWidth(0)
+	anim:SetFlipBookFrameHeight(0)
+	anim:SetDuration(totalFrames / speed)
+
+	group:SetLooping(loop and "REPEAT" or "NONE")
+	group:SetScript("OnFinished", nil)
+
+	-- When not looping, optionally freeze on the final playback cell (SetSpriteSheetCell is 1-based)
+	if not loop and holdLast then
+		local finalCell = reverse and 1 or totalFrames
+		group:SetScript("OnFinished", function()
+			if not f.texture then
+				return
+			end
+			f.texture:SetAtlas(atlasName, false)
+			if f.texture.SetSpriteSheetCell then
+				f.texture:SetSpriteSheetCell(finalCell, rows, columns)
+			end
+		end)
+	end
+
+	group:Stop()
+	group:Play(reverse and true or false)
+
+	f.isAtlasFlipbook = true
+end
+
 ---Play a stop-motion animation for a preset
 ---@param presetName string
 ---@param anchorName string
@@ -1509,10 +1622,19 @@ function wt:HideTextureFrame(presetName)
     end
 
     local f = container.frame
-    if f and f.Hide then
-        f:Hide()
-        f:SetScale(1) -- Reset scale to default before cleanup
-        f:SetParent(nil)
+    if f then
+        f:SetScript("OnUpdate", nil)
+        f.isAtlasFlipbook = nil
+        -- Stop FlipBook before SetParent(nil); reparenting an active FlipBook can crash the client
+        if f.atlasFlipbookGroup then
+            f.atlasFlipbookGroup:SetScript("OnFinished", nil)
+            f.atlasFlipbookGroup:Stop()
+        end
+        if f.Hide then
+            f:Hide()
+            f:SetScale(1) -- Reset scale to default before cleanup
+            f:SetParent(nil)
+        end
     end
 
     wt.activeFramesByPreset[presetName] = nil
@@ -1621,6 +1743,14 @@ function wt:allDefault()
     wt.frame.right.conditionsPanel.restedCheck:SetChecked(false)
     wt:SetShownMotionFields(false)
     wt.frame.right.configPanelContent.ftypeDropDown.selectedValue = "Static"
+    wt:SetShownAtlasFlipbookFields(false)
+    wt.frame.right.configPanelContent.flipbookColumnsEdit:SetText("4")
+    wt.frame.right.configPanelContent.flipbookRowsEdit:SetText("4")
+    wt.frame.right.configPanelContent.flipbookFramesEdit:SetText("16")
+    wt.frame.right.configPanelContent.animSpeedEdit:SetText("15")
+    wt.frame.right.configPanelContent.animLoopCheck:SetChecked(true)
+    wt.frame.right.configPanelContent.animReverseCheck:SetChecked(false)
+    wt.frame.right.configPanelContent.animHoldLastCheck:SetChecked(false)
     wt.frame.right.conditionsPanel.classDropDown.selectedValue = "Any Class"
     wt.frame.right.conditionsPanel.specDropDown.selectedValue = "Any Spec"
     wt.frame.right.configPanelContent.strataDropDown.selectedValue = "MEDIUM"
@@ -1712,6 +1842,47 @@ function wt:SetShownMotionFields(flag)
     wt.frame.right.configPanelContent.totalFramesEdit:SetShown(flag)
     wt.frame.right.configPanelContent.fpsLabel:SetShown(flag)
     wt.frame.right.configPanelContent.fpsEdit:SetShown(flag)
+    wt:UpdateConfigSectionAnchors()
+end
+
+---Show or hide Atlas Flipbook animation section
+---@param flag boolean
+function wt:SetShownAtlasFlipbookFields(flag)
+    local content = wt.frame.right.configPanelContent
+    content.animationHeader:SetShown(flag)
+    content.flipbookColumnsLabel:SetShown(flag)
+    content.flipbookColumnsEdit:SetShown(flag)
+    content.flipbookRowsLabel:SetShown(flag)
+    content.flipbookRowsEdit:SetShown(flag)
+    content.flipbookFramesLabel:SetShown(flag)
+    content.flipbookFramesEdit:SetShown(flag)
+    content.animSpeedLabel:SetShown(flag)
+    content.animSpeedEdit:SetShown(flag)
+    content.animLoopCheck:SetShown(flag)
+    content.animReverseCheck:SetShown(flag)
+    content.animHoldLastCheck:SetShown(flag)
+    wt:UpdateConfigSectionAnchors()
+end
+
+---Keep Text (and Sound) below Atlas Flipbook when that section is visible
+function wt:UpdateConfigSectionAnchors()
+    local content = wt.frame.right.configPanelContent
+    if not content or not content.textHeader or not content.anchorTypeDropDown then
+        return
+    end
+
+    content.textHeader:ClearAllPoints()
+    if content.animationHeader and content.animationHeader:IsShown() and content.animLoopCheck then
+        -- Anchor to the checkbox row so Text never overlaps Hold Last Frame
+        content.textHeader:SetPoint("TOPLEFT", content.animLoopCheck, "BOTTOMLEFT", 5, -16)
+    else
+        content.textHeader:SetPoint("TOPLEFT", content.anchorTypeDropDown, "BOTTOMLEFT", 1, -12)
+    end
+
+    if content.soundHeader and content.sizeHeader then
+        content.soundHeader:ClearAllPoints()
+        content.soundHeader:SetPoint("TOPLEFT", content.sizeHeader, "BOTTOMLEFT", 0, -100)
+    end
 end
 
 ---Handle search box text change
@@ -2276,19 +2447,48 @@ function wt:OnAddTextureClick()
 
     -- Store old type to detect type changes
     local oldPresetType = preset.type
-    local presetType = (wt.frame.right.configPanelContent.ftypeDropDown.selectedValue == "Stop Motion") and "motion" or "static"
+    local typeSelection = wt.frame.right.configPanelContent.ftypeDropDown.selectedValue
+    local presetType = "static"
+    if typeSelection == "Stop Motion" then
+        presetType = "motion"
+    elseif typeSelection == "Atlas Flipbook" then
+        presetType = "atlasFlipbook"
+    end
     preset.type = presetType
     if presetType == "motion" then
         preset.columns = tonumber(wt.frame.right.configPanelContent.columnsEdit:GetText()) or 1
         preset.rows = tonumber(wt.frame.right.configPanelContent.rowsEdit:GetText()) or 1
         preset.totalFrames = tonumber(wt.frame.right.configPanelContent.totalFramesEdit:GetText()) or 1
         preset.fps = tonumber(wt.frame.right.configPanelContent.fpsEdit:GetText()) or 30
+        preset.animationSpeed = nil
+        preset.animationLoop = nil
+        preset.animationReverse = nil
+        preset.animationHoldLast = nil
+    elseif presetType == "atlasFlipbook" then
+        preset.columns = tonumber(wt.frame.right.configPanelContent.flipbookColumnsEdit:GetText()) or 1
+        preset.rows = tonumber(wt.frame.right.configPanelContent.flipbookRowsEdit:GetText()) or 1
+        preset.totalFrames = tonumber(wt.frame.right.configPanelContent.flipbookFramesEdit:GetText()) or 1
+        preset.animationSpeed = tonumber(wt.frame.right.configPanelContent.animSpeedEdit:GetText()) or 15
+        preset.animationLoop = wt.frame.right.configPanelContent.animLoopCheck:GetChecked() and true or false
+        preset.animationReverse = wt.frame.right.configPanelContent.animReverseCheck:GetChecked() and true or false
+        preset.animationHoldLast = wt.frame.right.configPanelContent.animHoldLastCheck:GetChecked() and true or false
+        if preset.animationLoop then
+            preset.animationHoldLast = false
+        elseif preset.animationHoldLast then
+            preset.animationLoop = false
+        end
+        preset.fps = nil
+        useAtlas = true
     else
-        -- Clear motion-specific properties when switching to static
+        -- Clear motion/flipbook-specific properties when switching to static
         preset.columns = nil
         preset.rows = nil
         preset.totalFrames = nil
         preset.fps = nil
+        preset.animationSpeed = nil
+        preset.animationLoop = nil
+        preset.animationReverse = nil
+        preset.animationHoldLast = nil
     end
     preset.frameLevel = frameLevel
 
@@ -2421,15 +2621,32 @@ function wt:OnAddTextureClick()
         wt:HideTextureFrame(wt.selectedPreset)
     -- Otherwise check regular conditions and show if met
     elseif wt:PresetMatchesConditions(wt.selectedPreset) then
-        -- If type changed from motion to static, hide first to stop animation
-        if oldPresetType == "motion" and presetType == "static" then
+        -- If type changed, hide first to stop any running animation
+        if oldPresetType and oldPresetType ~= presetType then
             wt:HideTextureFrame(wt.selectedPreset)
         end
         
-        if preset.type and preset.type == "motion" then
+        if preset.type == "motion" then
             wt:PlayStopMotion(wt.selectedPreset, preset.textures[1].anchor, preset.textures[1].texture, 
                 preset.textures[1].width, preset.textures[1].height, preset.textures[1].x, preset.textures[1].y, 
                 preset.columns or 1, preset.rows or 1, preset.totalFrames or 1, preset.fps or 30)
+        elseif preset.type == "atlasFlipbook" then
+            wt:PlayAtlasFlipbook(
+                wt.selectedPreset,
+                preset.textures[1].anchor,
+                preset.textures[1].texture,
+                preset.textures[1].width,
+                preset.textures[1].height,
+                preset.textures[1].x,
+                preset.textures[1].y,
+                preset.columns or 1,
+                preset.rows or 1,
+                preset.totalFrames or 1,
+                preset.animationSpeed or 15,
+                preset.animationLoop ~= false,
+                preset.animationReverse and true or false,
+                (not (preset.animationLoop ~= false)) and (preset.animationHoldLast and true or false)
+            )
         else
             wt:CreateAnchoredTexture(wt.selectedPreset, anchorName, texturePath, width, height, x, y)
         end

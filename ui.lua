@@ -794,10 +794,26 @@ function wt:CreateUI()
         rootDescription:CreateRadio(L.TYPE_STATIC, function() return dropdown.selectedValue == "Static" end, function()
             dropdown.selectedValue = "Static"
             wt:SetShownMotionFields(false)
+            wt:SetShownAtlasFlipbookFields(false)
         end)
         rootDescription:CreateRadio(L.TYPE_STOP_MOTION, function() return dropdown.selectedValue == "Stop Motion" end, function()
             dropdown.selectedValue = "Stop Motion"
             wt:SetShownMotionFields(true)
+            wt:SetShownAtlasFlipbookFields(false)
+        end)
+        rootDescription:CreateRadio(L.TYPE_ATLAS_FLIPBOOK, function() return dropdown.selectedValue == "Atlas Flipbook" end, function()
+            dropdown.selectedValue = "Atlas Flipbook"
+            wt:SetShownMotionFields(false)
+            wt:SetShownAtlasFlipbookFields(true)
+            -- Prefer Blizzard Atlas as the texture source
+            if content.textureDropDown.selectedValue ~= "Blizzard Atlas" then
+                content.textureDropDown.selectedValue = "Blizzard Atlas"
+                content.textureDropDown.selectedPath = nil
+                if content.textureCustomEdit.Instructions then
+                    content.textureCustomEdit.Instructions:SetText(L.PLACEHOLDER_ATLAS_NAME or "Enter atlas name")
+                end
+                content.textureCustomEdit:Show()
+            end
         end)
     end)
 
@@ -876,6 +892,84 @@ function wt:CreateUI()
     content.hideWithParentCheck:SetChecked(true)  -- Default: checked (normal behavior)
     content.hideWithParentCheck.text:SetText(L.CHECKBOX_HIDE_WITH_PARENT)
     content.hideWithParentCheck:Hide()  -- Hidden by default
+
+    -- === ATLAS FLIPBOOK SETTINGS — above Text; shown via SetShownAtlasFlipbookFields ===
+    content.animationHeader = wt:CreateHeader(content, L.HEADER_ANIMATION)
+    content.animationHeader:SetPoint("TOPLEFT", content.anchorTypeDropDown, "BOTTOMLEFT", 1, -12)
+    content.animationHeader:Hide()
+
+    local flipbookFieldGap = 48
+
+    content.flipbookColumnsEdit = wt:CreateEditBox(content, wt.smallEditBoxWidth, nil, 4)
+    content.flipbookColumnsEdit:SetPoint("TOPLEFT", content.animationHeader, "BOTTOMLEFT", 5, -28)
+    content.flipbookColumnsEdit:SetNumeric(true)
+    content.flipbookColumnsEdit:SetText("4")
+    content.flipbookColumnsEdit:Hide()
+
+    content.flipbookColumnsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    content.flipbookColumnsLabel:SetPoint("BOTTOMLEFT", content.flipbookColumnsEdit, "TOPLEFT", 0, 3)
+    content.flipbookColumnsLabel:SetText(L.LABEL_ATLAS_COLUMNS)
+    content.flipbookColumnsLabel:Hide()
+
+    content.flipbookRowsEdit = wt:CreateEditBox(content, wt.smallEditBoxWidth, nil, 4)
+    content.flipbookRowsEdit:SetPoint("LEFT", content.flipbookColumnsEdit, "RIGHT", flipbookFieldGap, 0)
+    content.flipbookRowsEdit:SetNumeric(true)
+    content.flipbookRowsEdit:SetText("4")
+    content.flipbookRowsEdit:Hide()
+
+    content.flipbookRowsLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    content.flipbookRowsLabel:SetPoint("BOTTOMLEFT", content.flipbookRowsEdit, "TOPLEFT", 0, 3)
+    content.flipbookRowsLabel:SetText(L.LABEL_ATLAS_ROWS)
+    content.flipbookRowsLabel:Hide()
+
+    content.flipbookFramesEdit = wt:CreateEditBox(content, wt.smallEditBoxWidth, nil, 16)
+    content.flipbookFramesEdit:SetPoint("LEFT", content.flipbookRowsEdit, "RIGHT", flipbookFieldGap, 0)
+    content.flipbookFramesEdit:SetNumeric(true)
+    content.flipbookFramesEdit:SetText("16")
+    content.flipbookFramesEdit:Hide()
+
+    content.flipbookFramesLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    content.flipbookFramesLabel:SetPoint("BOTTOMLEFT", content.flipbookFramesEdit, "TOPLEFT", 0, 3)
+    content.flipbookFramesLabel:SetText(L.LABEL_FRAMES)
+    content.flipbookFramesLabel:Hide()
+
+    content.animSpeedEdit = wt:CreateEditBox(content, wt.smallEditBoxWidth, nil, "15")
+    content.animSpeedEdit:SetPoint("LEFT", content.flipbookFramesEdit, "RIGHT", flipbookFieldGap, 0)
+    content.animSpeedEdit:SetText("15")
+    content.animSpeedEdit:Hide()
+
+    content.animSpeedLabel = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    content.animSpeedLabel:SetPoint("BOTTOMLEFT", content.animSpeedEdit, "TOPLEFT", 0, 3)
+    content.animSpeedLabel:SetText(L.LABEL_ANIM_SPEED)
+    content.animSpeedLabel:Hide()
+
+    content.animLoopCheck = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    content.animLoopCheck:SetPoint("TOPLEFT", content.flipbookColumnsEdit, "BOTTOMLEFT", -4, -12)
+    content.animLoopCheck:SetChecked(true)
+    content.animLoopCheck.text:SetText(L.CHECKBOX_ANIM_LOOP)
+    content.animLoopCheck:Hide()
+    content.animLoopCheck:SetScript("OnClick", function(self)
+        if self:GetChecked() then
+            content.animHoldLastCheck:SetChecked(false)
+        end
+    end)
+
+    content.animReverseCheck = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    content.animReverseCheck:SetPoint("LEFT", content.animLoopCheck, "RIGHT", 70, 0)
+    content.animReverseCheck:SetChecked(false)
+    content.animReverseCheck.text:SetText(L.CHECKBOX_ANIM_REVERSE)
+    content.animReverseCheck:Hide()
+
+    content.animHoldLastCheck = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
+    content.animHoldLastCheck:SetPoint("LEFT", content.animReverseCheck, "RIGHT", 90, 0)
+    content.animHoldLastCheck:SetChecked(false)
+    content.animHoldLastCheck.text:SetText(L.CHECKBOX_ANIM_HOLD_LAST)
+    content.animHoldLastCheck:Hide()
+    content.animHoldLastCheck:SetScript("OnClick", function(self)
+        if self:GetChecked() then
+            content.animLoopCheck:SetChecked(false)
+        end
+    end)
 
     -- === TEXT SETTINGS ===
     content.textHeader = wt:CreateHeader(content, L.HEADER_TEXT_SETTINGS)

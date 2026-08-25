@@ -95,6 +95,28 @@ function wt:ApplyPreset(presetName)
         local totalFrames = (preset.tempOverrides and preset.tempOverrides.totalFrames) or preset.totalFrames or 1
         local fps = (preset.tempOverrides and preset.tempOverrides.fps) or preset.fps or 30
         self:PlayStopMotion(presetName, anchor, texture, width, height, x, y, columns, rows, totalFrames, fps)
+    elseif animType == "atlasFlipbook" then
+        wt:Debug("ApplyPreset: Playing atlas flipbook")
+        local columns = (preset.tempOverrides and preset.tempOverrides.columns) or preset.columns or 1
+        local rows = (preset.tempOverrides and preset.tempOverrides.rows) or preset.rows or 1
+        local totalFrames = (preset.tempOverrides and preset.tempOverrides.totalFrames) or preset.totalFrames or 1
+        local speed = (preset.tempOverrides and preset.tempOverrides.animationSpeed) or preset.animationSpeed or 15
+        local loop = preset.animationLoop
+        if preset.tempOverrides and preset.tempOverrides.animationLoop ~= nil then
+            loop = preset.tempOverrides.animationLoop
+        end
+        if loop == nil then loop = true end
+        local reverse = preset.animationReverse
+        if preset.tempOverrides and preset.tempOverrides.animationReverse ~= nil then
+            reverse = preset.tempOverrides.animationReverse
+        end
+        local holdLast = preset.animationHoldLast
+        if preset.tempOverrides and preset.tempOverrides.animationHoldLast ~= nil then
+            holdLast = preset.tempOverrides.animationHoldLast
+        end
+        if holdLast == nil then holdLast = false end
+        if loop then holdLast = false end
+        self:PlayAtlasFlipbook(presetName, anchor, texture, width, height, x, y, columns, rows, totalFrames, speed, loop, reverse, holdLast)
     else
         wt:Debug("ApplyPreset: Creating static texture")
         self:CreateAnchoredTexture(
@@ -393,16 +415,39 @@ function wt:LoadPresetIntoFields(presetName)
     
     -- TYPE
     local presetType = preset.type or "static"
-    local typeText = presetType == "motion" and "Stop Motion" or "Static"
+    local typeText = "Static"
+    if presetType == "motion" then
+        typeText = "Stop Motion"
+    elseif presetType == "atlasFlipbook" then
+        typeText = "Atlas Flipbook"
+    end
     wt.frame.right.configPanelContent.ftypeDropDown.selectedValue = typeText
     if presetType == "motion" then
         wt:SetShownMotionFields(true)
+        wt:SetShownAtlasFlipbookFields(false)
         wt.frame.right.configPanelContent.columnsEdit:SetText(preset.columns and tostring(preset.columns) or "")
         wt.frame.right.configPanelContent.rowsEdit:SetText(preset.rows and tostring(preset.rows) or "")
         wt.frame.right.configPanelContent.totalFramesEdit:SetText(preset.totalFrames and tostring(preset.totalFrames) or "")
         wt.frame.right.configPanelContent.fpsEdit:SetText(preset.fps and tostring(preset.fps) or "")
+    elseif presetType == "atlasFlipbook" then
+        wt:SetShownMotionFields(false)
+        wt:SetShownAtlasFlipbookFields(true)
+        wt.frame.right.configPanelContent.flipbookColumnsEdit:SetText(preset.columns and tostring(preset.columns) or "4")
+        wt.frame.right.configPanelContent.flipbookRowsEdit:SetText(preset.rows and tostring(preset.rows) or "4")
+        wt.frame.right.configPanelContent.flipbookFramesEdit:SetText(preset.totalFrames and tostring(preset.totalFrames) or "16")
+        wt.frame.right.configPanelContent.animSpeedEdit:SetText(preset.animationSpeed and tostring(preset.animationSpeed) or "15")
+        wt.frame.right.configPanelContent.animReverseCheck:SetChecked(preset.animationReverse and true or false)
+        -- Loop and Hold Last Frame are mutually exclusive; prefer Loop when both were saved
+        local holdLast = preset.animationHoldLast and true or false
+        local loop = preset.animationLoop ~= false
+        if loop and holdLast then
+            holdLast = false
+        end
+        wt.frame.right.configPanelContent.animLoopCheck:SetChecked(loop)
+        wt.frame.right.configPanelContent.animHoldLastCheck:SetChecked(holdLast)
     else
         wt:SetShownMotionFields(false)
+        wt:SetShownAtlasFlipbookFields(false)
     end
     -- SCALE
     wt.frame.right.configPanelContent.scaleEdit:SetText(preset.scale and tostring(preset.scale) or "1.0")

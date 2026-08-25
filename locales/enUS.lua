@@ -63,6 +63,7 @@ L.PLACEHOLDER_ATLAS_NAME = "Enter atlas name. e.g. UI-HUD-ActionBar-IconFrame"
 L.LABEL_TYPE = "Type"
 L.TYPE_STATIC = "Static"
 L.TYPE_STOP_MOTION = "Stop Motion"
+L.TYPE_ATLAS_FLIPBOOK = "Atlas Flipbook"
 L.LABEL_STRATA = "Strata"
 L.LABEL_LEVEL = "Level"
 L.LABEL_ANCHOR_FRAME = "Anchor Frame"
@@ -102,6 +103,15 @@ L.LABEL_COL = "Col"
 L.LABEL_ROW = "Row"
 L.LABEL_FRAMES = "Frames"
 L.LABEL_FPS = "FPS"
+
+-- Atlas Flipbook Settings
+L.HEADER_ANIMATION = "Atlas Flipbook Settings"
+L.LABEL_ATLAS_COLUMNS = "Atlas Columns"
+L.LABEL_ATLAS_ROWS = "Atlas Rows"
+L.LABEL_ANIM_SPEED = "Speed (FPS)"
+L.CHECKBOX_ANIM_LOOP = "Loop"
+L.CHECKBOX_ANIM_REVERSE = "Reverse"
+L.CHECKBOX_ANIM_HOLD_LAST = "Hold Last Frame"
 
 -- Text Settings
 L.HEADER_TEXT_SETTINGS = "Text Settings"
