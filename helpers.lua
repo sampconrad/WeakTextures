@@ -2231,7 +2231,14 @@ end
 ---@param texturePath string
 ---@return string|nil
 function wt:RegisterCustomTexture(texturePath)
-    if not texturePath or texturePath == "" then return nil end
+    if type(texturePath) ~= "string" or texturePath == "" then return nil end
+    
+    -- Only real file paths can be custom textures. Atlas names (e.g.
+    -- "UI-Expedition-Highlight-Bottom") have no directory separator and must
+    -- stay atlas references instead of LSM media.
+    if not texturePath:find("[/\\]") then
+        return nil
+    end
     
     -- Extract filename from path for the texture name
     local textureName = texturePath:match("([^/\\]+)$") or texturePath
@@ -2245,12 +2252,14 @@ function wt:RegisterCustomTexture(texturePath)
         return textureName
     end
     
-    -- Try to register with LSM
-    local success = pcall(function()
-        wt.LSM:Register("background", textureName, texturePath)
+    -- Try to register with LSM. pcall alone is not enough: it only reports
+    -- whether an error was raised, and LibSharedMedia returns false (without
+    -- erroring) for rejected registrations like non-Interface paths.
+    local ok, registered = pcall(function()
+        return wt.LSM:Register("background", textureName, texturePath)
     end)
     
-    if success then
+    if ok and registered then
         WeakTexturesCustomTextures[textureName] = texturePath
         return textureName
     end

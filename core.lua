@@ -302,7 +302,8 @@ function wt:InitializeMinimapIcon()
         end,
     })
     
-    wt.LDBIcon:Register(wt.addonName, Broker_WeakTextures, WeakTexturesDB.minimap)
+    -- hide must be set here: LibDBIcon shows the button again on PLAYER_LOGIN unless db.hide is true
+    wt.LDBIcon:Register(wt.addonName, Broker_WeakTextures, { hide = true })
 end
 
 -- Auto load textures on login / reload / specialization change / combat state change / death / alive
@@ -350,9 +351,16 @@ loader:SetScript("OnEvent", function(_, event, ...)
             -- Register all saved custom textures with LibSharedMedia
             if WeakTexturesCustomTextures then
                 for textureName, texturePath in pairs(WeakTexturesCustomTextures) do
-                    pcall(function()
-                        wt.LSM:Register("background", textureName, texturePath)
-                    end)
+                    -- Drop entries that aren't real file paths (older versions
+                    -- saved atlas names here). They can't be LSM media and only
+                    -- cause errors from LibSharedMedia's file validation.
+                    if type(texturePath) ~= "string" or not texturePath:find("[/\\]") then
+                        WeakTexturesCustomTextures[textureName] = nil
+                    else
+                        pcall(function()
+                            wt.LSM:Register("background", textureName, texturePath)
+                        end)
+                    end
                 end
             end
             
@@ -411,6 +419,7 @@ end)
 
 -- Slash command
 SLASH_WEAKTEXTURES1 = "/weaktextures"
+SLASH_WEAKTEXTURES2 = "/wt"
 SlashCmdList.WEAKTEXTURES = function(msg)
     if InCombatLockdown() then return end
     local command = msg:lower():trim()
